@@ -1,0 +1,464 @@
+#!/bin/bash
+
+# ベース音名クイズ - Bash版
+
+# 色設定（オプション、端末が対応している場合）
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 弦の基本音
+declare -A STRING_NOTES
+STRING_NOTES[4]="E"
+STRING_NOTES[3]="A"
+STRING_NOTES[2]="D"
+STRING_NOTES[1]="G"
+
+# 音階（半音順）
+NOTES=("C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B")
+
+# 別名対応
+declare -A NOTE_ALIASES
+NOTE_ALIASES["C#"]="Db"
+NOTE_ALIASES["D#"]="Eb"
+NOTE_ALIASES["F#"]="Gb"
+NOTE_ALIASES["G#"]="Ab"
+NOTE_ALIASES["A#"]="Bb"
+
+# スコア変数
+SCORE=0
+TOTAL_QUESTIONS=0
+QUIZ_MODE="normal"
+
+# 関数: 指定された弦とフレットから音名を取得
+get_note_from_position() {
+    local string_num=$1
+    local fret=$2
+    
+    if [[ ! "1 2 3 4" =~ $string_num ]] || [[ $fret -lt 0 ]] || [[ $fret -gt 20 ]]; then
+        echo ""
+        return 1
+    fi
+    
+    local open_note=${STRING_NOTES[$string_num]}
+    
+    # 開放弦の音のインデックスを探す
+    local open_index=-1
+    for i in "${!NOTES[@]}"; do
+        if [[ "${NOTES[$i]}" == "$open_note" ]]; then
+            open_index=$i
+            break
+        fi
+    done
+    
+    if [[ $open_index -eq -1 ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # フレット分移動（12音循環）
+    local note_index=$(( (open_index + fret) % 12 ))
+    echo "${NOTES[$note_index]}"
+}
+
+# 関数: 答えをチェック
+check_answer() {
+    local user_answer=$1
+    local correct_note=$2
+    
+    # 大文字に変換して空白を削除
+    user_answer=$(echo "$user_answer" | tr '[:lower:]' '[:upper:]' | xargs)
+    
+    if [[ "$user_answer" == "$correct_note" ]]; then
+        return 0  # 正解
+    fi
+    
+    # 別名をチェック
+    for note in "${!NOTE_ALIASES[@]}"; do
+        if [[ "$correct_note" == "$note" ]] && [[ "$user_answer" == "${NOTE_ALIASES[$note]}" ]]; then
+            return 0  # 別名で正解
+        fi
+        if [[ "$user_answer" == "$note" ]] && [[ "$correct_note" == "${NOTE_ALIASES[$note]}" ]]; then
+            return 0  # 逆の別名で正解
+        fi
+    done
+    
+    return 1  # 不正解
+}
+
+# 関数: ランダムな問題を生成
+generate_question() {
+    local string_num
+    local fret
+    
+    string_num=$(( RANDOM % 4 + 1 ))  # 1-4
+    
+    # 問題数に応じて難易度調整
+    if [[ $TOTAL_QUESTIONS -lt 5 ]]; then
+        fret=$(( RANDOM % 6 ))        # 0-5
+    elif [[ $TOTAL_QUESTIONS -lt 10 ]]; then
+        fret=$(( RANDOM % 10 ))       # 0-9
+    else
+        fret=$(( RANDOM % 13 ))       # 0-12
+    fi
+    
+    echo "$string_num $fret"
+}
+
+# 関数: スコア表示
+show_score() {
+    echo "========================================"
+    echo "SCORE: $SCORE/$TOTAL_QUESTIONS"
+    if [[ $TOTAL_QUESTIONS -gt 0 ]]; then
+        local percentage=$(echo "scale=1; $SCORE * 100 / $TOTAL_QUESTIONS" | bc)
+        echo "ACCURACY: ${percentage}%"
+    fi
+    echo "========================================"
+}
+
+# 関数: 通常クイズモード
+run_normal_quiz() {
+    local num_questions=$1
+    
+    clear
+    echo "========================================"
+    echo "BASS NOTE QUIZ"
+    echo "========================================"
+    echo "Answer the note for given string and fret"
+    echo "Example: 4th string, 3rd fret -> 'G'"
+    echo "Hint: 4th=E, 3rd=A, 2nd=D, 1st=G"
+    echo "Commands: 'q'=quit, 'h'=hint, 's'=show score"
+    echo "========================================"
+    
+    for ((i=1; i<=num_questions; i++)); do
+        echo ""
+        echo "QUESTION $i/$num_questions"
+        
+        # 問題生成
+        read string_num fret <<< $(generate_question)
+        local correct_note=$(get_note_from_position "$string_num" "$fret")
+        
+        echo "String: $string_num, Fret: $fret"
+        
+        while true; do
+            echo -n "Note? (ex: C, F#, Bb): "
+            read user_input
+            
+            case "$user_input" in
+                q|quit|exit)
+                    echo "Quitting quiz..."
+                    show_score
+                    return 1
+                    ;;
+                h|hint)
+                    echo "Hint: String $string_num open note is '${STRING_NOTES[$string_num]}'"
+                    continue
+                    ;;
+                s|score)
+                    show_score
+                    continue
+                    ;;
+                "")
+                    echo "Please enter a note name."
+                    continue
+                    ;;
+                *)
+                    # 答えをチェック
+                    if check_answer "$user_input" "$correct_note"; then
+                        echo -e "${GREEN}CORRECT!${NC}"
+                        SCORE=$((SCORE + 1))
+                        break
+                    else
+                        echo -e "${RED}WRONG.${NC} Correct answer: '$correct_note'"
+                        # 別名がある場合
+                        if [[ -n "${NOTE_ALIASES[$correct_note]}" ]]; then
+                            echo "    Also accepted: ${NOTE_ALIASES[$correct_note]}"
+                        fi
+                        break
+                    fi
+                    ;;
+            esac
+        done
+        
+        TOTAL_QUESTIONS=$((TOTAL_QUESTIONS + 1))
+    done
+    
+    show_score
+}
+
+# 関数: 練習モード
+run_practice_mode() {
+    clear
+    echo "========================================"
+    echo "BASS PRACTICE MODE"
+    echo "========================================"
+    echo "Practice specific positions"
+    echo "Format: string-fret (ex: 4-3)"
+    echo "Commands: 'q'=quit, 'm'=back to menu"
+    echo "========================================"
+    
+    while true; do
+        echo ""
+        echo -n "Enter position (string-fret) or command: "
+        read input
+        
+        case "$input" in
+            q|quit|exit)
+                echo "Exiting practice mode..."
+                return 0
+                ;;
+            m|menu)
+                echo "Returning to main menu..."
+                return 0
+                ;;
+            *)
+                # フォーマットチェック: string-fret
+                if [[ "$input" =~ ^([1-4])-([0-9]+)$ ]]; then
+                    local string_num=${BASH_REMATCH[1]}
+                    local fret=${BASH_REMATCH[2]}
+                    
+                    if [[ $fret -gt 20 ]]; then
+                        echo "Fret should be 0-20"
+                        continue
+                    fi
+                    
+                    local note=$(get_note_from_position "$string_num" "$fret")
+                    
+                    if [[ -n "$note" ]]; then
+                        echo "String $string_num, Fret $fret: $note"
+                        
+                        # 別名がある場合
+                        if [[ -n "${NOTE_ALIASES[$note]}" ]]; then
+                            echo "Also known as: ${NOTE_ALIASES[$note]}"
+                        fi
+                        
+                        # 同じ音の他の位置を探す
+                        echo "Same note on other positions:"
+                        find_same_notes "$note"
+                    else
+                        echo "Invalid position"
+                    fi
+                else
+                    echo "Invalid format. Use: string-fret (ex: 4-3)"
+                fi
+                ;;
+        esac
+    done
+}
+
+# 関数: 同じ音の他の位置を探す
+find_same_notes() {
+    local target_note=$1
+    local found=0
+    
+    for s in 1 2 3 4; do
+        for f in {0..12}; do
+            local note=$(get_note_from_position "$s" "$f")
+            if [[ "$note" == "$target_note" ]]; then
+                echo "  String $s, Fret $f"
+                found=1
+            fi
+        done
+    done
+    
+    if [[ $found -eq 0 ]]; then
+        echo "  (No other positions found within 12 frets)"
+    fi
+}
+
+# 関数: 特定の弦の練習モード
+run_string_practice() {
+    clear
+    echo "========================================"
+    echo "SINGLE STRING PRACTICE MODE"
+    echo "========================================"
+    
+    echo -n "Which string to practice? (1-4): "
+    read string_choice
+    
+    if [[ ! "$string_choice" =~ ^[1-4]$ ]]; then
+        echo "Invalid string number. Returning to menu."
+        return
+    fi
+    
+    echo -n "How many questions? (default 10): "
+    read num_questions
+    num_questions=${num_questions:-10}
+    
+    if [[ ! "$num_questions" =~ ^[0-9]+$ ]] || [[ $num_questions -le 0 ]]; then
+        num_questions=10
+    fi
+    
+    clear
+    echo "========================================"
+    echo "PRACTICING STRING $string_choice"
+    echo "========================================"
+    echo "Open note: ${STRING_NOTES[$string_choice]}"
+    echo "Questions: $num_questions"
+    echo "Commands: 'q'=quit, 's'=show score"
+    echo "========================================"
+    
+    local local_score=0
+    local local_total=0
+    
+    for ((i=1; i<=num_questions; i++)); do
+        echo ""
+        echo "Question $i/$num_questions"
+        
+        # フレットをランダムに選択 (0-12)
+        local fret=$(( RANDOM % 13 ))
+        local correct_note=$(get_note_from_position "$string_choice" "$fret")
+        
+        echo "String: $string_choice, Fret: $fret"
+        
+        while true; do
+            echo -n "Note? (ex: C, F#, Bb): "
+            read user_input
+            
+            case "$user_input" in
+                q|quit|exit)
+                    echo "Quitting practice..."
+                    echo "Your score: $local_score/$local_total"
+                    return
+                    ;;
+                s|score)
+                    echo "Current score: $local_score/$local_total"
+                    continue
+                    ;;
+                *)
+                    if check_answer "$user_input" "$correct_note"; then
+                        echo -e "${GREEN}CORRECT!${NC}"
+                        local_score=$((local_score + 1))
+                        break
+                    else
+                        echo -e "${RED}WRONG.${NC} Correct answer: '$correct_note'"
+                        break
+                    fi
+                    ;;
+            esac
+        done
+        
+        local_total=$((local_total + 1))
+    done
+    
+    echo ""
+    echo "========================================"
+    echo "PRACTICE COMPLETE"
+    echo "Final score: $local_score/$local_total"
+    if [[ $local_total -gt 0 ]]; then
+        local percentage=$(echo "scale=1; $local_score * 100 / $local_total" | bc)
+        echo "Accuracy: ${percentage}%"
+    fi
+    echo "========================================"
+    echo -n "Press Enter to continue..."
+    read
+}
+
+# 関数: メインメニュー
+show_menu() {
+    while true; do
+        clear
+        echo "========================================"
+        echo "BASS NOTE TRAINER - MAIN MENU"
+        echo "========================================"
+        echo "1. Normal Quiz"
+        echo "2. Practice Mode (by position)"
+        echo "3. Single String Practice"
+        echo "4. Show Fretboard Reference"
+        echo "5. Exit"
+        echo "========================================"
+        echo -n "Select option (1-5): "
+        
+        read choice
+        
+        case "$choice" in
+            1)
+                echo -n "How many questions? (default 10): "
+                read num_q
+                num_q=${num_q:-10}
+                
+                if [[ "$num_q" =~ ^[0-9]+$ ]] && [[ $num_q -gt 0 ]]; then
+                    run_normal_quiz "$num_q"
+                else
+                    echo "Invalid number. Using default (10)."
+                    run_normal_quiz 10
+                fi
+                
+                echo -n "Press Enter to continue..."
+                read
+                ;;
+            2)
+                run_practice_mode
+                ;;
+            3)
+                run_string_practice
+                ;;
+            4)
+                show_fretboard_reference
+                echo -n "Press Enter to continue..."
+                read
+                ;;
+            5)
+                echo "Goodbye!"
+                exit 0
+                ;;
+            *)
+                echo "Invalid option. Please select 1-5."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# 関数: フレットボード参照表を表示
+show_fretboard_reference() {
+    clear
+    echo "========================================"
+    echo "BASS FRETBOARD REFERENCE (0-12 frets)"
+    echo "========================================"
+    echo ""
+    echo "String | 0   1   2   3   4   5   6   7   8   9   10  11  12"
+    echo "-------|----------------------------------------------------"
+    
+    for s in 4 3 2 1; do
+        printf "  %d    | " "$s"
+        
+        for f in {0..12}; do
+            local note=$(get_note_from_position "$s" "$f")
+            printf "%-3s " "$note"
+        done
+        echo ""
+    done
+    
+    echo ""
+    echo "========================================"
+    echo "NOTE: # = sharp, b = flat"
+    echo "Alternate names: C#=Db, D#=Eb, F#=Gb, G#=Ab, A#=Bb"
+    echo "========================================"
+}
+
+# メイン実行
+main() {
+    # スクリプトが直接実行された場合のみ実行
+    if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+        # 色表示が有効かチェック
+        if [[ -t 1 ]]; then
+            # 対話モードで色を使用
+            :
+        else
+            # パイプやリダイレクト時は色を無効化
+            RED=""
+            GREEN=""
+            YELLOW=""
+            BLUE=""
+            NC=""
+        fi
+        
+        show_menu
+    fi
+}
+
+# メイン関数を実行
+main "$@"
