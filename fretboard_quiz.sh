@@ -1,8 +1,7 @@
 #!/bin/bash
+# ベース音名クイズ
 
-# ベース音名クイズ - Bash版
-
-# 色設定（オプション、端末が対応している場合）
+# 色設定
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -63,32 +62,21 @@ get_note_from_position() {
     echo "${NOTES[$note_index]}"
 }
 
-# 関数: 答えをチェック
+# 答えをチェック
 check_answer() {
     local user_answer=$1
     local correct_note=$2
     
-    # 大文字に変換して空白を削除
-    user_answer=$(echo "$user_answer" | tr '[:lower:]' '[:upper:]' | xargs)
+    # 大文字に変換
+    user_answer=$(echo "$user_answer" | sed 's/^\([a-z]\)/\U\1/')
     
-    if [[ "$user_answer" == "$correct_note" ]]; then
-        return 0  # 正解
-    fi
-    
-    # 別名をチェック
-    for note in "${!NOTE_ALIASES[@]}"; do
-        if [[ "$correct_note" == "$note" ]] && [[ "$user_answer" == "${NOTE_ALIASES[$note]}" ]]; then
-            return 0  # 別名で正解
-        fi
-        if [[ "$user_answer" == "$note" ]] && [[ "$correct_note" == "${NOTE_ALIASES[$note]}" ]]; then
-            return 0  # 逆の別名で正解
-        fi
-    done
+    [[ "$user_answer" == "$correct_note" ]] && return 0  # 正解
+    [[ "$user_answer" == "${NOTE_ALIASES[$correct_note]}" ]] && return 0  # 別名で正解
     
     return 1  # 不正解
 }
 
-# 関数: ランダムな問題を生成
+# ランダムな問題を生成
 generate_question() {
     local string_num
     local fret
@@ -99,15 +87,15 @@ generate_question() {
     if [[ $TOTAL_QUESTIONS -lt 5 ]]; then
         fret=$(( RANDOM % 6 ))        # 0-5
     elif [[ $TOTAL_QUESTIONS -lt 10 ]]; then
-        fret=$(( RANDOM % 10 ))       # 0-9
-    else
         fret=$(( RANDOM % 13 ))       # 0-12
+    else
+        fret=$(( RANDOM % 21 ))       # 0-20
     fi
     
     echo "$string_num $fret"
 }
 
-# 関数: スコア表示
+# スコア表示
 show_score() {
     echo "========================================"
     echo "SCORE: $SCORE/$TOTAL_QUESTIONS"
@@ -127,12 +115,14 @@ run_normal_quiz() {
     echo "BASS NOTE QUIZ"
     echo "========================================"
     echo "Answer the note for given string and fret"
-    echo "Example: 4th string, 3rd fret -> 'G'"
-    echo "Hint: 4th=E, 3rd=A, 2nd=D, 1st=G"
+    echo "Example: 'G'"
     echo "Commands: 'q'=quit, 'h'=hint, 's'=show score"
     echo "========================================"
-    
+    tput sc
+
     for ((i=1; i<=num_questions; i++)); do
+        tput rc
+        tput ed
         echo ""
         echo "QUESTION $i/$num_questions"
         
@@ -143,7 +133,7 @@ run_normal_quiz() {
         echo "String: $string_num, Fret: $fret"
         
         while true; do
-            echo -n "Note? (ex: C, F#, Bb): "
+            echo -n "Note?: "
             read user_input
             
             case "$user_input" in
@@ -169,15 +159,12 @@ run_normal_quiz() {
                     if check_answer "$user_input" "$correct_note"; then
                         echo -e "${GREEN}CORRECT!${NC}"
                         SCORE=$((SCORE + 1))
-                        break
                     else
                         echo -e "${RED}WRONG.${NC} Correct answer: '$correct_note'"
-                        # 別名がある場合
-                        if [[ -n "${NOTE_ALIASES[$correct_note]}" ]]; then
-                            echo "    Also accepted: ${NOTE_ALIASES[$correct_note]}"
-                        fi
-                        break
                     fi
+
+                    read -s -t 1
+                    break
                     ;;
             esac
         done
@@ -422,7 +409,7 @@ show_fretboard_reference() {
     echo "String | 0   1   2   3   4   5   6   7   8   9   10  11  12"
     echo "-------|----------------------------------------------------"
     
-    for s in 4 3 2 1; do
+    for s in {1..4}; do
         printf "  %d    | " "$s"
         
         for f in {0..12}; do
