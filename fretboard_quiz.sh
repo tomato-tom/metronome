@@ -31,7 +31,7 @@ SCORE=0
 TOTAL_QUESTIONS=0
 QUIZ_MODE="normal"
 
-# 関数: 指定された弦とフレットから音名を取得
+# 指定された弦とフレットから音名を取得
 get_note_from_position() {
     local string_num=$1
     local fret=$2
@@ -106,7 +106,7 @@ show_score() {
     echo "========================================"
 }
 
-# 関数: 通常クイズモード
+# 通常クイズモード
 run_normal_quiz() {
     local num_questions=$1
     
@@ -175,7 +175,7 @@ run_normal_quiz() {
     show_score
 }
 
-# 関数: 練習モード
+# 練習モード
 run_practice_mode() {
     clear
     echo "========================================"
@@ -235,7 +235,7 @@ run_practice_mode() {
     done
 }
 
-# 関数: 同じ音の他の位置を探す
+# 同じ音の他の位置を探す
 find_same_notes() {
     local target_note=$1
     local found=0
@@ -255,7 +255,7 @@ find_same_notes() {
     fi
 }
 
-# 関数: 特定の弦の練習モード
+# 特定の弦の練習モード
 run_string_practice() {
     clear
     echo "========================================"
@@ -343,7 +343,7 @@ run_string_practice() {
     read
 }
 
-# 関数: メインメニュー
+# メインメニュー
 show_menu() {
     while true; do
         clear
@@ -399,7 +399,7 @@ show_menu() {
     done
 }
 
-# 関数: フレットボード参照表を表示
+# フレットボード参照表を表示
 show_fretboard_reference() {
     clear
     echo "========================================"
@@ -426,9 +426,7 @@ show_fretboard_reference() {
     echo "========================================"
 }
 
-# メイン実行
 main() {
-    # スクリプトが直接実行された場合のみ実行
     if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         # 色表示が有効かチェック
         if [[ -t 1 ]]; then
@@ -447,5 +445,4 @@ main() {
     fi
 }
 
-# メイン関数を実行
 main "$@"
