@@ -123,7 +123,7 @@ run_normal_quiz() {
     for ((i=1; i<=num_questions; i++)); do
         tput rc
         tput ed
-        echo ""
+        echo
         echo "QUESTION $i/$num_questions"
         
         # 問題生成
@@ -289,12 +289,15 @@ run_string_practice() {
     echo "Questions: $num_questions"
     echo "Commands: 'q'=quit, 's'=show score"
     echo "========================================"
-    
+    echo
+    tput sc
+
     local local_score=0
     local local_total=0
     
     for ((i=1; i<=num_questions; i++)); do
-        echo ""
+        tput rc
+        tput ed
         echo "Question $i/$num_questions"
         
         # フレットをランダムに選択 (0-12)
@@ -304,7 +307,7 @@ run_string_practice() {
         echo "String: $string_choice, Fret: $fret"
         
         while true; do
-            echo -n "Note? (ex: C, F#, Bb): "
+            echo -n "Note? (ex: C): "
             read user_input
             
             case "$user_input" in
@@ -318,14 +321,16 @@ run_string_practice() {
                     continue
                     ;;
                 *)
+                    echo
                     if check_answer "$user_input" "$correct_note"; then
                         echo -e "${GREEN}CORRECT!${NC}"
                         local_score=$((local_score + 1))
-                        break
                     else
                         echo -e "${RED}WRONG.${NC} Correct answer: '$correct_note'"
-                        break
                     fi
+
+                    read -s -t 1
+                    break
                     ;;
             esac
         done
@@ -346,7 +351,7 @@ run_string_practice() {
     read
 }
 
-# TUI風メインメニュー
+# メインメニュー
 show_menu() {
     local menu=(
         "Normal Quiz"
