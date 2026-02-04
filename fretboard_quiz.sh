@@ -387,8 +387,8 @@ show_menu() {
                     '[A') ((selected > 0)) && ((selected--)) ;;  # ↑
                     '[B') ((selected < ${#menu[@]}-1)) && ((selected++)) ;; # ↓
                 esac
-                # 特殊キーは３文字シーケンスだから、残りの２文字'n2'を読み取る
-                # ↑: \x1b [ A  (ESC + [ + A)
+                # 特殊キーは３文字シーケンスだから、２回めのreadで残りの２文字(n2)を読み取る
+                # ↑: \x1b [ A
                 ;;
             '') # Enter
                 echo
