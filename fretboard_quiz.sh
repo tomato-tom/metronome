@@ -157,10 +157,12 @@ run_normal_quiz() {
                 *)
                     # 答えをチェック
                     if check_answer "$user_input" "$correct_note"; then
+                        echo
                         echo -e "${GREEN}CORRECT!${NC}"
                         SCORE=$((SCORE + 1))
                     else
                         echo -e "${RED}WRONG.${NC} Correct answer: '$correct_note'"
+                        echo
                     fi
 
                     read -s -t 1
@@ -172,6 +174,7 @@ run_normal_quiz() {
         TOTAL_QUESTIONS=$((TOTAL_QUESTIONS + 1))
     done
     
+    echo
     show_score
 }
 
@@ -343,57 +346,85 @@ run_string_practice() {
     read
 }
 
-# メインメニュー
+# TUI風メインメニュー
 show_menu() {
+    local menu=(
+        "Normal Quiz"
+        "Practice Mode (by position)"
+        "Single String Practice"
+        "Show Fretboard Reference"
+        "Exit"
+    )
+    local selected=0
+    local key
+
+    tput civis
+    clear
+    echo "========================================"
+    echo "BASS NOTE TRAINER - MAIN MENU"
+    echo "========================================"
+    tput sc
+
     while true; do
-        clear
-        echo "========================================"
-        echo "BASS NOTE TRAINER - MAIN MENU"
-        echo "========================================"
-        echo "1. Normal Quiz"
-        echo "2. Practice Mode (by position)"
-        echo "3. Single String Practice"
-        echo "4. Show Fretboard Reference"
-        echo "5. Exit"
-        echo "========================================"
-        echo -n "Select option (1-5): "
+        tput rc
+        tput ed
+
+        for i in "${!menu[@]}"; do
+            if [ $i -eq $selected ]; then
+                echo "→ ${menu[$i]}"
+            else
+                echo "  ${menu[$i]}"
+            fi
+        done
         
-        read choice
-        
-        case "$choice" in
-            1)
-                echo -n "How many questions? (default 10): "
-                read num_q
-                num_q=${num_q:-10}
-                
-                if [[ "$num_q" =~ ^[0-9]+$ ]] && [[ $num_q -gt 0 ]]; then
-                    run_normal_quiz "$num_q"
-                else
-                    echo "Invalid number. Using default (10)."
-                    run_normal_quiz 10
-                fi
-                
-                echo -n "Press Enter to continue..."
-                read
+        read -rsn1 key
+        case "$key" in
+            k) ((selected > 0)) && ((selected--)) ;;  # k ↑
+            j) ((selected < ${#menu[@]}-1)) && ((selected++)) ;; # j ↓
+            $'\x1b')
+                read -rsn2 key
+                case "$key" in
+                    '[A') ((selected > 0)) && ((selected--)) ;;  # ↑
+                    '[B') ((selected < ${#menu[@]}-1)) && ((selected++)) ;; # ↓
+                esac
+                # 特殊キーは３文字シーケンスだから、残りの２文字'n2'を読み取る
+                # ↑: \x1b [ A  (ESC + [ + A)
                 ;;
-            2)
-                run_practice_mode
-                ;;
-            3)
-                run_string_practice
-                ;;
-            4)
-                show_fretboard_reference
-                echo -n "Press Enter to continue..."
-                read
-                ;;
-            5)
-                echo "Goodbye!"
-                exit 0
-                ;;
-            *)
-                echo "Invalid option. Please select 1-5."
-                sleep 1
+            '') # Enter
+                echo
+
+                case "$selected" in
+                    0)
+                        echo -n "How many questions? (default 10): "
+                        read num_q
+                        num_q=${num_q:-10}
+                        
+                        if [[ "$num_q" =~ ^[0-9]+$ ]] && [[ $num_q -gt 0 ]]; then
+                            run_normal_quiz "$num_q"
+                        else
+                            echo "Invalid number. Using default (10)."
+                            run_normal_quiz 10
+                        fi
+                        
+                        echo -n "Press Enter to continue..."
+                        read
+                        ;;
+                    1)
+                        run_practice_mode
+                        ;;
+                    2)
+                        run_string_practice
+                        ;;
+                    3)
+                        show_fretboard_reference
+                        echo -n "Press Enter to continue..."
+                        read
+                        ;;
+                    4)
+                        echo "Goodbye!"
+                        exit 0
+                        ;;
+                esac
                 ;;
         esac
     done
@@ -425,6 +456,12 @@ show_fretboard_reference() {
     echo "Alternate names: C#=Db, D#=Eb, F#=Gb, G#=Ab, A#=Bb"
     echo "========================================"
 }
+
+cleanup() {
+    tput cnorm
+}
+
+trap cleanup EXIT INT TERM
 
 main() {
     if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
