@@ -36,7 +36,7 @@ play_pid=$!
 paused=false
 while :; do
     read -rsn1 key
-    if [ -z $key ]; then
+    if [[ -z $key ]]; then
         if $paused; then
             rm -f /tmp/metronome_pause
             paused=false
