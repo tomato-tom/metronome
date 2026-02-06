@@ -6,7 +6,7 @@ bars=${3:-99}
 interval=$(echo "scale=3; 60/$bpm" | bc)
 
 echo "BPM: $bpm (${interval}s per beat)"
-echo "p to pause/resume, q to quit"
+echo "Space to pause/resume, q to quit"
 echo
 
 trap 'kill $play_pid 2>/dev/null; echo -e "\nStopped"; exit' INT
