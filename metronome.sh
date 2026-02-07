@@ -40,7 +40,6 @@ while :; do
         if $paused; then
             rm -f /tmp/metronome_pause
             paused=false
-            echo -ne "\rResumed...              \r"
         else
             touch /tmp/metronome_pause
             paused=true
