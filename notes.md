@@ -14,6 +14,18 @@ metronome_swing.sh
 ## リズムパターン生成
 rhythm_pattern.sh
 
+### 各拍の役割
+
+beat 1
+beat 2
+beat 3
+beat 4
+
+### ユークリッドリズム
+リズム生成アルゴリズムの一種
+
+
+
 ### 難易度自己評価
 - pattern
     - 1011 0101
