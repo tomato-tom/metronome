@@ -8,9 +8,6 @@ metronome.sh
 ホットキーでBPM変更
 振り子ぽいアニメーション
 
-metronome_stats.sh
-metronome_swing.sh
-
 ## リズムパターン生成
 rhythm_pattern.sh
 
@@ -76,4 +73,7 @@ SD - 0011 1100 1111 0000
 BD - 1000 0010 1000 1000
 
 音源は？
+
+metronome_stats.sh
+metronome_swing.sh
 
