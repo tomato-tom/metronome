@@ -19,16 +19,23 @@ while getopts "b:f:t" opt; do
     b) BPM=$OPTARG ;;
     f) FREQ=$OPTARG ;;
     t) MODE=triplet ;;
-    *) echo "Usage: $0 [-b BPM] [-f FREQUENCY] [-t]" >&2; exit 1 ;;
+    *) usage ;;
   esac
 done
 shift $((OPTIND - 1))
+
+usage() {
+    echo "Usage: $0 [-b BPM] [-f FREQUENCY] [-t]"
+    exit
+}
 
 # 入力取得（引数または標準入力）
 if [[ -n "$1" ]]; then
     pattern="$*"
 else
-    read -r pattern
+    if ! read -rt1 pattern; then
+        usage
+    fi
 fi
 echo $pattern
 
