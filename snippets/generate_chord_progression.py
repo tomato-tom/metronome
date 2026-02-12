@@ -1,6 +1,4 @@
 import numpy as np
-import pyaudio
-import mido
 from mido import MidiFile, MidiTrack, Message
 import json
 import random
@@ -85,7 +83,6 @@ class ChordProgressionGenerator:
                 )[0]
                 current = next_func
         
-        print(progression) # debug
         return progression
     
     def pretty_print(self, progression):
@@ -99,58 +96,6 @@ SAMPLE_RATE = 44100
 BPM = 120
 BEAT_LENGTH = 60 / BPM
 
-#NOTE_NUMBERS = {
-#    'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
-#    'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
-#    'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71
-#}
-#
-#def note_to_freq(note):
-#    return 440 * (2 ** ((note - 69) / 12))
-#
-#def parse_chord(chord_name):
-#    """簡易コードパーサ"""
-#    root = chord_name[0].upper()
-#    root_num = NOTE_NUMBERS[root]
-#    
-#    if 'm' in chord_name and '7' in chord_name:  # m7
-#        return [root_num, root_num + 3, root_num + 7, root_num + 10]
-#    elif 'm' in chord_name:  # m
-#        return [root_num, root_num + 3, root_num + 7]
-#    elif '7' in chord_name:  # 7
-#        return [root_num, root_num + 4, root_num + 7, root_num + 10]
-#    else:  # M
-#        return [root_num, root_num + 4, root_num + 7]
-
-#def play_chord(chord_notes, duration=1.0):
-#    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), False)
-#    wave = np.zeros_like(t)
-#    
-#    for note in chord_notes:
-#        freq = note_to_freq(note)
-#        wave += np.sin(2 * np.pi * freq * t)
-#    
-#    wave = wave / (len(chord_notes) + 1)
-#    
-#    p = pyaudio.PyAudio()
-#    stream = p.open(format=pyaudio.paFloat32,
-#                    channels=1,
-#                    rate=SAMPLE_RATE,
-#                    output=True)
-#    stream.write(wave.astype(np.float32).tobytes())
-#    stream.close()
-#    p.terminate()
-
-#def play_progression(progression, beats_per_chord=4):
-#    for func, chord in progression:
-#        notes = parse_chord(chord)
-#        print(f"  {chord} ({func})", end=" ", flush=True)
-#        play_chord(notes, BEAT_LENGTH * beats_per_chord)
-#    print()
-
-# ============================================
-# MIDI保存
-# ============================================
 def save_as_midi(progression, filename="progression.mid", beats_per_chord=4):
     mid = MidiFile()
     track = MidiTrack()
@@ -190,7 +135,6 @@ def main():
         # 再生
         print("再生:", end=" ")
         play_wave_sound.play_chord(progression, duration)
-        #play_progression(progression)
         
         # アクション
         cmd = input("\n[r]再生成 [s]MIDI保存 [q]終了: ").lower()
@@ -203,7 +147,6 @@ def main():
             if not filename.endswith('.mid'):
                 filename += '.mid'
             save_as_midi(progression, filename)
-        # rの場合はそのままループ??
 
 if __name__ == "__main__":
     main()
