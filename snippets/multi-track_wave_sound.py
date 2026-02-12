@@ -5,19 +5,6 @@ import time
 SAMPLE_RATE = 44100
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-# コード定義
-CHORDS = {
-    'C': ['C2', 'E4', 'G4', 'C5'],
-    'Dm': ['D2', 'F4', 'A4', 'D5'],
-    'Em': ['E2', 'G4', 'B4', 'E5'],
-    'F': ['F2', 'A4', 'C5', 'F5'],
-    'G': ['G2', 'B4', 'D5', 'G5'],
-    'Am': ['A2', 'C5', 'E5', 'A5'],
-    'Bdim': ['B2', 'D5', 'F5', 'B5'],
-    'C7': ['C2', 'E4', 'G4', 'Bb4'],
-    'G7': ['G2', 'B4', 'D5', 'F5'],
-}
-
 class NoteUtils:
     """音関連のユーティリティクラス"""
     
@@ -85,7 +72,100 @@ class NoteUtils:
                     wave += 2 * np.abs(2 * (t * freq - np.floor(t * freq + 0.5))) - 1
             return wave
 
-
+    @classmethod
+    def parse_chord_symbol(cls, chord_symbol):
+        """
+        コードシンボルを解析してroot, interval取得
+        
+        対応:
+            'C', 'Cm', 'Cdim', 'Caug', 'C7', 'Cm7', 'CM7', 'Cm7b5', 'Cdim7', etc.
+        """
+        # ルートの抽出
+        if len(chord_symbol) > 1 and chord_symbol[1] == '#':
+            root = chord_symbol[:2]
+            suffix = chord_symbol[2:]
+        else:
+            root = chord_symbol[0]
+            suffix = chord_symbol[1:]
+        
+        # コードタイプの判定
+        if suffix == '' or suffix == 'M':
+            intervals = [0, 4, 7]  # メジャー
+        elif suffix == 'm':
+            intervals = [0, 3, 7]  # マイナー
+        elif suffix == 'dim':
+            intervals = [0, 3, 6]  # ディミニッシュ
+        elif suffix == 'aug':
+            intervals = [0, 4, 8]  # オーギュメント
+        elif suffix == '7':
+            intervals = [0, 4, 7, 10]  # セブンス
+        elif suffix == 'm7':
+            intervals = [0, 3, 7, 10]  # マイナーセブンス
+        elif suffix in ('M7', 'maj7'):
+            intervals = [0, 4, 7, 11]  # メジャーセブンス
+        elif suffix == 'm7b5':
+            intervals = [0, 3, 6, 10]  # マイナーセブンスフラットファイブ
+        elif suffix == 'dim7':
+            intervals = [0, 3, 6, 9]  # ディミニッシュセブンス
+        elif suffix == '6':
+            intervals = [0, 4, 7, 9]  # シックス
+        elif suffix == 'm6':
+            intervals = [0, 3, 7, 9]  # マイナーシックス
+        elif suffix == 'sus4':
+            intervals = [0, 5, 7]  # サスフォー
+        elif suffix == '7sus4':
+            intervals = [0, 5, 7, 10]  # セブンスサスフォー
+        elif suffix == '9':
+            intervals = [0, 4, 7, 10, 14]  # ナインス
+        else:
+            intervals = [0, 4, 7]  # デフォルトはメジャー
+        
+        return root, intervals
+    
+    @classmethod
+    def build_chord(cls, chord_symbol, bass_octave=2, chord_octave=4, intervals=None):
+        """
+        コードをインターバルから生成
+        
+        Args:
+            chord_symbol: 'C', 'Am', 'D7', ...
+            bass_octave: ベースのオクターブ（デフォルト2）
+            chord_octave: コードのオクターブ（デフォルト4）
+            intervals: インターバルリスト（指定時はパースをスキップ）
+        
+        Returns:
+            コード構成音のリスト
+        """
+        if intervals is None:
+            root, intervals = cls.parse_chord_symbol(chord_symbol)
+        else:
+            # ルートのみ抽出
+            if len(chord_symbol) > 1 and chord_symbol[1] == '#':
+                root = chord_symbol[:2]
+            else:
+                root = chord_symbol[0]
+        
+        if len(root) > 1 and root[1] == '#':
+            root_index = NOTE_NAMES.index(root[:2])
+        else:
+            root_index = NOTE_NAMES.index(root[0])
+        
+        chord_notes = []
+        
+        # ベース音（ルートのbass_octave）
+        chord_notes.append(f"{root}{bass_octave}")
+        
+        # コード構成音
+        for interval in intervals:
+            note_index = (root_index + interval) % 12
+            note_name = NOTE_NAMES[note_index]
+            
+            # オクターブ計算
+            octave = chord_octave + ((root_index + interval) // 12)
+            chord_notes.append(f"{note_name}{octave}")
+        
+        return chord_notes
+    
 class AudioPlayer:
     """オーディオ再生クラス"""
     
@@ -226,6 +306,7 @@ class MelodyTrack(Track):
                         wave_note = np.pad(wave_note, (0, target_len - len(wave_note)), 'constant')
                     
                     wave[start_idx:end_idx] += wave_note * self.volume
+            else:
             
             current_time += note_duration
         
@@ -272,7 +353,12 @@ class ChordTrack(Track):
             
             if start_idx < len(wave) and end_idx > start_idx:
                 # コードの音名リストを取得
-                notes = CHORDS[chord] if isinstance(chord, str) else chord
+                if isinstance(chord, str):
+                    # 文字列の場合はコードシンボルとして解釈
+                    notes = NoteUtils.build_chord(chord)
+                else:
+                    # リストの場合はそのまま使用
+                    notes = chord
                 
                 wave_chord = NoteUtils.generate_waveform(
                     notes,
@@ -371,33 +457,35 @@ class Song:
 
 # 使用例
 if __name__ == "__main__":
-    # きらきら星
-    melody = ['C4', 'C4', 'G4', 'G4', 'A4', 'A4', 'G4',
-              'F4', 'F4', 'E4', 'E4', 'D4', 'D4', 'C4']
-    melody_rhythm = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.0,
-                     0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.0]
+    # メリーさんの羊
+    melody = ['E5', 'D5', 'C5', 'D5',
+              'E5', 'E5', 'E5', 'rest',
+              'D5', 'D5', 'D5',
+              'E5', 'G5', 'G5']
+    melody_rhythm = [0.75, 0.25, 0.5, 0.5,
+                     0.5, 0.5, 0.5, 0.5,
+                     0.5, 0.5, 1.0,
+                     0.5, 0.5, 1.0]
     
     # コード進行
-    chords = ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'C']
+    chords = ['C', 'C', 'G', 'C', 'C', 'C', 'G','C']
     chord_rhythm = [2, 2, 2, 2, 2, 2, 2, 2]
-    
-    print("=== オブジェクト指向版 ===")
-    
-    # メロディのみ
-    print("\n1. メロディのみ")
-    Song(tempo=120)\
-        .add_melody(melody, melody_rhythm, style='normal', volume=0.2)\
-        .play()
-    
-    time.sleep(1)
-    
-    # コードのみ
-    print("\n2. コードのみ")
-    Song(tempo=120)\
-        .add_chords(chords, chord_rhythm, style='normal', volume=0.15)\
-        .play()
-    
-    time.sleep(1)
+
+    ## メロディのみ
+    #print("\n1. メロディのみ")
+    #Song(tempo=120)\
+    #    .add_melody(melody, melody_rhythm, style='normal', volume=0.2)\
+    #    .play()
+    #
+    #time.sleep(1)
+    #
+    ## コードのみ
+    #print("\n2. コードのみ")
+    #Song(tempo=120)\
+    #    .add_chords(chords, chord_rhythm, style='normal', volume=0.15)\
+    #    .play()
+    #
+    #time.sleep(1)
     
     # メロディ + コード
     print("\n3. メロディ + コード（同時）")
@@ -406,13 +494,13 @@ if __name__ == "__main__":
         .add_chords(chords, chord_rhythm, style='normal', volume=0.15, waveform='sine')\
         .play()
     
-    # 違うスタイルの組み合わせ
-    time.sleep(1)
-    print("\n4. メロディ（ノーマル）+ コード（スタッカート）")
-    Song(tempo=120)\
-        .add_melody(melody, melody_rhythm, style='normal', volume=0.2)\
-        .add_chords(chords, chord_rhythm, style='staccato', volume=0.15)\
-        .play()
+    ## 違うスタイルの組み合わせ
+    #time.sleep(1)
+    #print("\n4. メロディ（ノーマル）+ コード（スタッカート）")
+    #Song(tempo=120)\
+    #    .add_melody(melody, melody_rhythm, style='normal', volume=0.2)\
+    #    .add_chords(chords, chord_rhythm, style='staccato', volume=0.15)\
+    #    .play()
     
     # 保存機能
     # song = Song(tempo=120)\
