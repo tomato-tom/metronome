@@ -5,6 +5,84 @@ import time
 SAMPLE_RATE = 44100
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+def build_chord(chord_symbol, bass_octave=2, chord_octave=4, intervals=None):
+    """
+    コードをインターバルから生成
+    
+    Args:
+        chord_symbol: 'C', 'Am', 'D7', ...
+        bass_octave: ベースのオクターブ（デフォルト2）
+        chord_octave: コードのオクターブ（デフォルト4）
+        intervals: インターバルリスト（デフォルトはメジャートライアド）
+    
+    Returns:
+        コード構成音のリスト
+    """
+    result = parse_chord_symbol(chord_symbol)
+    root = result[0]
+
+    if intervals is None:
+        intervals = result[1]
+    
+    if len(root) > 1 and root[1] == '#':
+        root_index = NOTE_NAMES.index(root[:2])
+    else:
+        root_index = NOTE_NAMES.index(root[0])
+    chord_notes = []
+    
+    # ベース音（ルートのbass_octave）
+    chord_notes.append(f"{root}{bass_octave}")
+    
+    # コード構成音
+    for interval in intervals:
+        note_index = (root_index + interval) % 12
+        note_name = NOTE_NAMES[note_index]
+        
+        # オクターブ計算
+        octave = chord_octave + ((root_index + interval) // 12)
+        chord_notes.append(f"{note_name}{octave}")
+    
+    return chord_notes
+
+def parse_chord_symbol(chord_symbol):
+    """
+    コードシンボルを解析してroot, interval取得
+    
+    対応:
+        'C', 'Cm', 'Cdim', 'Caug', 'C7', 'Cm7', 'CM7', 'Cm7b5', 'Cdim7', etc.
+    """
+    # ルートの抽出
+    if len(chord_symbol) > 1 and chord_symbol[1] == '#':
+        root = chord_symbol[:2]
+        suffix = chord_symbol[2:]
+    else:
+        root = chord_symbol[0]
+        suffix = chord_symbol[1:]
+    
+    # コードタイプの判定
+    if suffix == '':
+        intervals = [0, 4, 7]  # メジャー
+    elif suffix == 'm':
+        intervals = [0, 3, 7]  # マイナー
+    elif suffix == 'dim':
+        intervals = [0, 3, 6]  # ディミニッシュ
+    elif suffix == 'aug':
+        intervals = [0, 4, 8]  # オーギュメント
+    elif suffix == '7':
+        intervals = [0, 4, 7, 10]  # セブンス
+    elif suffix == 'm7':
+        intervals = [0, 3, 7, 10]  # マイナーセブンス
+    elif suffix == 'M7' or suffix == 'maj7':
+        intervals = [0, 4, 7, 11]  # メジャーセブンス
+    elif suffix == 'm7b5':
+        intervals = [0, 3, 6, 10]  # マイナーセブンスフラットファイブ
+    elif suffix == 'dim7':
+        intervals = [0, 3, 6, 9]  # ディミニッシュセブンス
+    else:
+        intervals = [0, 4, 7]  # デフォルトはメジャー
+    
+    return root, intervals
+
 def note_to_freq(note, octave=4):
     """Convert note name to frequency in Hz"""
     if isinstance(note, (int, float)):
@@ -135,7 +213,7 @@ def play_chord(chords, durations, tempo=120, style='normal',
     コード進行を再生
     
     Args:
-        chords: コードのリスト（各要素はCHORDSのキーまたは音名リスト）
+        chords: コードのリスト（各要素はコードシンボルのリスト）
         durations: 各コードの拍数リスト
         tempo: テンポ（BPM）
         style: 'normal', 'legato', 'staccato'
@@ -157,7 +235,7 @@ def play_chord(chords, durations, tempo=120, style='normal',
         silence_duration = chord_duration - play_duration
         
         # コードの音名リストを取得
-        notes = CHORDS[chord] if isinstance(chord, str) else chord
+        notes = build_chord(chord)
         
         # 波形生成（共通関数）
         wave = generate_waveform(notes, play_duration, waveform)
@@ -214,20 +292,6 @@ def play_melody(notes, durations, tempo=120, style='normal',
     stream.close()
     p.terminate()
 
-# コード定義
-CHORDS = {
-    'C': ['C2', 'E4', 'G4', 'C4'],
-    'Dm': ['D2', 'F4', 'A4', 'D4'],
-    'Em': ['E2', 'G4', 'B3', 'E4'],
-    'F': ['F2', 'A4', 'C4', 'F4'],
-    'G': ['G2', 'B4', 'D4', 'G4'],
-    'Am': ['A2', 'C4', 'E4', 'A4'],
-    'Bdim': ['B2', 'D4', 'F4', 'B4'],
-    'C7': ['C2', 'E4', 'G4', 'Bb4'],
-    'G7': ['G2', 'B4', 'D4', 'F4'],
-    'Dm7': ['D2', 'F4', 'A4', 'C4'],
-}
-
 # 使用例
 if __name__ == "__main__":
     print("=== melody ===")
@@ -237,21 +301,12 @@ if __name__ == "__main__":
     time.sleep(1)
 
     print("=== コード進行（ノーマル）===")
-    progression = ['C', 'G', 'Am', 'F', 'C']
+    progression = ['CM7', 'G7', 'Am7', 'FM7', 'CM7']
     duration = [2, 2, 2, 2, 4]
     play_chord(progression, duration,tempo=120, style='normal', waveform='sine')
     time.sleep(1)
     
-    print("\n=== コード進行（スタッカート）===")
-    progression = ['C', 'G', 'Am', 'Em', 'F', 'C', 'Dm7', 'G7']
-    duration = [1, 1, 1, 1, 1, 1, 1, 1]
-    play_chord(progression, duration, tempo=150, style='staccato', waveform='sine')
-    progression = ['C']
-    duration = [2]
-    play_chord(progression, duration,tempo=150, style='normal', waveform='sine')
-    time.sleep(1)
-    
-    print("\n=== コード進行（レガート＋スクエア波）===")
-    progression = ['C', 'Am', 'Dm', 'G7', 'C']
-    duration = [2, 2, 2, 2, 4]
-    play_chord(progression, duration,tempo=80, style='legato', waveform='square', volume=0.2)
+    #print("\n=== コード進行（レガート＋スクエア波）===")
+    #progression = ['C', 'Am', 'Dm', 'G7', 'C']
+    #duration = [2, 2, 2, 2, 4]
+    #play_chord(progression, duration,tempo=80, style='legato', waveform='square', volume=0.2)
