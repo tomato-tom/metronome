@@ -23,6 +23,96 @@ def note_to_freq(note, octave=4):
     except:
         return 440.0
 
+def generate_waveform(notes, duration, waveform='sine', sample_rate=SAMPLE_RATE):
+    """
+    1つまたは複数の音の波形を生成
+    
+    Args:
+        notes: 単一の音名（str）または音名のリスト
+        duration: 再生時間（秒）
+        waveform: 'sine', 'square', 'sawtooth', 'triangle'
+    
+    Returns:
+        wave: 生成された波形（正規化前）
+    """
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    
+    # 単一の音の場合
+    if isinstance(notes, str):
+        freq = note_to_freq(notes)
+        if waveform == 'sine':
+            return np.sin(2 * np.pi * freq * t)
+        elif waveform == 'square':
+            return np.sign(np.sin(2 * np.pi * freq * t))
+        elif waveform == 'sawtooth':
+            return 2 * (t * freq % 1) - 1
+        elif waveform == 'triangle':
+            return 2 * np.abs(2 * (t * freq - np.floor(t * freq + 0.5))) - 1
+    
+    # 複数の音（コード）の場合
+    else:
+        wave = np.zeros_like(t)
+        for note in notes:
+            freq = note_to_freq(note)
+            if waveform == 'sine':
+                wave += np.sin(2 * np.pi * freq * t)
+            elif waveform == 'square':
+                wave += np.sign(np.sin(2 * np.pi * freq * t))
+            elif waveform == 'sawtooth':
+                wave += 2 * (t * freq % 1) - 1
+            elif waveform == 'triangle':
+                wave += 2 * np.abs(2 * (t * freq - np.floor(t * freq + 0.5))) - 1
+        return wave
+
+def play_audio(wave, stream=None, volume=0.3, envelope=(0.003, 0.003)):
+    """
+    波形にエンベロープ適用、音量調整、正規化して再生
+    
+    Args:
+        wave: 生波形
+        stream: PyAudioストリーム（Noneなら新規作成）
+        volume: 音量
+        envelope: (attack, release) 秒
+    
+    Returns:
+        stream: 使用したストリーム（既存の場合はそのまま）
+    """
+    # エンベロープ適用
+    attack, release = envelope
+    wave = apply_envelope(wave, attack, release)
+    
+    # 音量調整
+    wave = wave * volume
+    
+    # クリッピング防止
+    max_amp = np.max(np.abs(wave))
+    if max_amp > 1.0:
+        wave = wave / max_amp * 0.9
+    
+    # 再生
+    need_cleanup = False
+    if stream is None:
+        p = pyaudio.PyAudio()
+        stream = p.open(format=pyaudio.paFloat32,
+                       channels=1,
+                       rate=SAMPLE_RATE,
+                       output=True)
+        need_cleanup = True
+    
+    stream.write(wave.astype(np.float32).tobytes())
+    
+    if need_cleanup:
+        stream.close()
+        p.terminate()
+        return None
+    return stream
+
+def play_silence(duration, stream):
+    """無音を再生"""
+    if duration > 0.0001:
+        samples = int(SAMPLE_RATE * duration)
+        stream.write(np.zeros(samples).astype(np.float32).tobytes())
+
 def apply_envelope(wave, attack=0.003, release=0.003):
     """Apply attack and release envelope"""
     envelope = np.ones_like(wave)
@@ -38,6 +128,7 @@ def apply_envelope(wave, attack=0.003, release=0.003):
     
     return wave * envelope
 
+
 def play_chord(chords, durations, tempo=120, style='normal', 
                           waveform='sine', volume=0.3, envelope=(0.003, 0.003)):
     """
@@ -51,136 +142,74 @@ def play_chord(chords, durations, tempo=120, style='normal',
         waveform: 'sine', 'square', 'sawtooth', 'triangle'
     """
     beat_duration = 60.0 / tempo
-    
-    # スタイルごとの音の長さの比率
-    note_lengths = {
-        'legato': 0.98,
-        'normal': 0.95,
-        'staccato': 0.60,
-    }
+    note_lengths = {'legato': 0.98, 'normal': 0.95, 'staccato': 0.60}
     note_length = note_lengths.get(style, 0.95)
     
-    attack, release = envelope
-    
     p = pyaudio.PyAudio()
-    stream = p.open(
-        format=pyaudio.paFloat32,
-        channels=1,
-        rate=SAMPLE_RATE,
-        output=True
-    )
+    stream = p.open(format=pyaudio.paFloat32,
+                   channels=1,
+                   rate=SAMPLE_RATE,
+                   output=True)
     
     for chord, duration in zip(chords, durations):
-        # コードの音名リストを取得
-        if isinstance(chord, str):
-            # CHORDS辞書から取得
-            chord_notes = CHORDS.get(chord, [chord])  # 見つからない場合はそのまま
-        else:
-            chord_notes = chord
-        
         chord_duration = duration * beat_duration
         play_duration = chord_duration * note_length
         silence_duration = chord_duration - play_duration
         
-        # 音を鳴らす部分の波形生成
-        t = np.linspace(0, play_duration, int(SAMPLE_RATE * play_duration), False)
-        wave = np.zeros_like(t)
+        # コードの音名リストを取得
+        notes = CHORDS[chord] if isinstance(chord, str) else chord
         
-        for note in chord_notes:
-            freq = note_to_freq(note)
-            if waveform == 'sine':
-                wave += np.sin(2 * np.pi * freq * t)
-            elif waveform == 'square':
-                wave += np.sign(np.sin(2 * np.pi * freq * t))
-            elif waveform == 'sawtooth':
-                wave += 2 * (t * freq % 1) - 1
-            elif waveform == 'triangle':
-                wave += 2 * np.abs(2 * (t * freq - np.floor(t * freq + 0.5))) - 1
+        # 波形生成（共通関数）
+        wave = generate_waveform(notes, play_duration, waveform)
         
-        # 正規化
-        wave = wave / len(chord_notes)
+        # 再生（ストリーム再利用）
+        play_audio(wave, stream, volume, envelope)
         
-        # エンベロープ適用
-        wave = apply_envelope(wave, attack, release)
-        
-        # ボリューム調整
-        wave = wave * volume
-        
-        # クリッピング防止
-        max_amp = np.max(np.abs(wave))
-        if max_amp > 1.0:
-            wave = wave / max_amp * 0.9
-        
-        # 再生
-        stream.write(wave.astype(np.float32).tobytes())
-        
-        # 残りの時間は無音
-        if silence_duration > 0.0001:
-            silence = np.zeros(int(SAMPLE_RATE * silence_duration))
-            stream.write(silence.astype(np.float32).tobytes())
+        # 無音
+        play_silence(silence_duration, stream)
     
     stream.close()
     p.terminate()
 
-# メロディ再生関数
 def play_melody(notes, durations, tempo=120, style='normal', 
-                volume=0.3, envelope=(0.003, 0.003)):
+                waveform='sine', volume=0.3, envelope=(0.003, 0.003)):
     """
-    メロディを正確なタイミングで再生
+    メロディを再生
     
-    style:
-        'normal'   - 0.78 (標準)
-        'legato'   - 0.98 (なめらか)
-        'staccato' - 0.40 (短く切る)
+    Args:
+        notes: List of notes
+        durations: List of each notes
+        tempo: tempo（BPM）
+        style: 'normal', 'legato', 'staccato'
+        waveform: 'sine', 'square', 'sawtooth', 'triangle'
     """
     beat_duration = 60.0 / tempo
-    
-    note_lengths = {
-        'legato': 0.98,
-        'normal': 0.78,
-        'staccato': 0.40,
-    }
+    note_lengths = {'legato': 0.98, 'normal': 0.78, 'staccato': 0.40}
     note_length = note_lengths.get(style, 0.78)
     
-    attack, release = envelope
-    
     p = pyaudio.PyAudio()
-    stream = p.open(
-        format=pyaudio.paFloat32,
-        channels=1,
-        rate=SAMPLE_RATE,
-        output=True
-    )
+    stream = p.open(format=pyaudio.paFloat32,
+                   channels=1,
+                   rate=SAMPLE_RATE,
+                   output=True)
     
     for note, duration in zip(notes, durations):
         note_duration = duration * beat_duration
         
         if note == 'rest':
-            silence = np.zeros(int(SAMPLE_RATE * note_duration))
-            stream.write(silence.astype(np.float32).tobytes())
-            
+            play_silence(note_duration, stream)
         else:
             play_duration = note_duration * note_length
+            silence_duration = note_duration - play_duration
             
-            # 音を鳴らす部分
-            t = np.linspace(0, play_duration, int(SAMPLE_RATE * play_duration), False)
-            freq = note_to_freq(note)
-            wave = np.sin(2 * np.pi * freq * t)
-            wave = apply_envelope(wave, attack, release)
-            wave = wave * volume
+            # 波形生成（共通関数）
+            wave = generate_waveform(note, play_duration, 'sine')  # メロディは常にsine
             
-            # クリッピング防止
-            max_amp = np.max(np.abs(wave))
-            if max_amp > 1.0:
-                wave = wave / max_amp * 0.9
+            # 再生（ストリーム再利用）
+            play_audio(wave, stream, volume, envelope)
             
-            stream.write(wave.astype(np.float32).tobytes())
-            
-            # 残りの時間は無音
-            remaining = note_duration - play_duration
-            if remaining > 0.0001:
-                silence = np.zeros(int(SAMPLE_RATE * remaining))
-                stream.write(silence.astype(np.float32).tobytes())
+            # 無音
+            play_silence(silence_duration, stream)
     
     stream.close()
     p.terminate()
@@ -204,7 +233,7 @@ if __name__ == "__main__":
     print("=== melody ===")
     melody = ['C', 'D', 'E', 'F', 'G']
     duration = [1, 1, 1, 1, 2]
-    play_melody(melody, duration,tempo=120, style='normal')
+    play_melody(melody, duration,tempo=180, style='normal')
     time.sleep(1)
 
     print("=== コード進行（ノーマル）===")
@@ -217,6 +246,9 @@ if __name__ == "__main__":
     progression = ['C', 'G', 'Am', 'Em', 'F', 'C', 'Dm7', 'G7']
     duration = [1, 1, 1, 1, 1, 1, 1, 1]
     play_chord(progression, duration, tempo=150, style='staccato', waveform='sine')
+    progression = ['C']
+    duration = [2]
+    play_chord(progression, duration,tempo=150, style='normal', waveform='sine')
     time.sleep(1)
     
     print("\n=== コード進行（レガート＋スクエア波）===")
