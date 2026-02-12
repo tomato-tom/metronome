@@ -41,7 +41,7 @@ def apply_envelope(wave, attack=0.003, release=0.003):
 def play_chord(chords, durations, tempo=120, style='normal', 
                           waveform='sine', volume=0.3, envelope=(0.003, 0.003)):
     """
-    コード進行を正確なタイミングで再生（ストリーム開きっぱなし）
+    コード進行を再生
     
     Args:
         chords: コードのリスト（各要素はCHORDSのキーまたは音名リスト）
@@ -208,8 +208,8 @@ if __name__ == "__main__":
     time.sleep(1)
 
     print("=== コード進行（ノーマル）===")
-    progression = ['C', 'G', 'Am', 'F']
-    duration = [2, 2, 2, 2, 2, 2, 2, 2]
+    progression = ['C', 'G', 'Am', 'F', 'C']
+    duration = [2, 2, 2, 2, 4]
     play_chord(progression, duration,tempo=120, style='normal', waveform='sine')
     time.sleep(1)
     
