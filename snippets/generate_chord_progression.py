@@ -4,6 +4,7 @@ import mido
 from mido import MidiFile, MidiTrack, Message
 import json
 import random
+import play_wave_sound
 
 # ============================================
 # 設定
@@ -72,7 +73,8 @@ class ChordProgressionGenerator:
             else:
                 chord = random.choice(candidates)
             
-            progression.append((current, chord))
+            #progression.append((current, chord))
+            progression.append(chord)
             last_chord = chord
             
             # 次の機能を選ぶ（最終小節は除く）
@@ -83,11 +85,12 @@ class ChordProgressionGenerator:
                 )[0]
                 current = next_func
         
+        print(progression) # debug
         return progression
     
     def pretty_print(self, progression):
         """コード進行を表示"""
-        return " | ".join([f"{chord}" for _, chord in progression])
+        return " | ".join(progression)
 
 # ============================================
 # サウンドエンジン
@@ -96,54 +99,54 @@ SAMPLE_RATE = 44100
 BPM = 120
 BEAT_LENGTH = 60 / BPM
 
-NOTE_NUMBERS = {
-    'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
-    'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
-    'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71
-}
+#NOTE_NUMBERS = {
+#    'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
+#    'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
+#    'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71
+#}
+#
+#def note_to_freq(note):
+#    return 440 * (2 ** ((note - 69) / 12))
+#
+#def parse_chord(chord_name):
+#    """簡易コードパーサ"""
+#    root = chord_name[0].upper()
+#    root_num = NOTE_NUMBERS[root]
+#    
+#    if 'm' in chord_name and '7' in chord_name:  # m7
+#        return [root_num, root_num + 3, root_num + 7, root_num + 10]
+#    elif 'm' in chord_name:  # m
+#        return [root_num, root_num + 3, root_num + 7]
+#    elif '7' in chord_name:  # 7
+#        return [root_num, root_num + 4, root_num + 7, root_num + 10]
+#    else:  # M
+#        return [root_num, root_num + 4, root_num + 7]
 
-def note_to_freq(note):
-    return 440 * (2 ** ((note - 69) / 12))
+#def play_chord(chord_notes, duration=1.0):
+#    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), False)
+#    wave = np.zeros_like(t)
+#    
+#    for note in chord_notes:
+#        freq = note_to_freq(note)
+#        wave += np.sin(2 * np.pi * freq * t)
+#    
+#    wave = wave / (len(chord_notes) + 1)
+#    
+#    p = pyaudio.PyAudio()
+#    stream = p.open(format=pyaudio.paFloat32,
+#                    channels=1,
+#                    rate=SAMPLE_RATE,
+#                    output=True)
+#    stream.write(wave.astype(np.float32).tobytes())
+#    stream.close()
+#    p.terminate()
 
-def parse_chord(chord_name):
-    """簡易コードパーサ"""
-    root = chord_name[0].upper()
-    root_num = NOTE_NUMBERS[root]
-    
-    if 'm' in chord_name and '7' in chord_name:  # m7
-        return [root_num, root_num + 3, root_num + 7, root_num + 10]
-    elif 'm' in chord_name:  # m
-        return [root_num, root_num + 3, root_num + 7]
-    elif '7' in chord_name:  # 7
-        return [root_num, root_num + 4, root_num + 7, root_num + 10]
-    else:  # M
-        return [root_num, root_num + 4, root_num + 7]
-
-def play_chord(chord_notes, duration=1.0):
-    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), False)
-    wave = np.zeros_like(t)
-    
-    for note in chord_notes:
-        freq = note_to_freq(note)
-        wave += np.sin(2 * np.pi * freq * t)
-    
-    wave = wave / (len(chord_notes) + 1)
-    
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paFloat32,
-                    channels=1,
-                    rate=SAMPLE_RATE,
-                    output=True)
-    stream.write(wave.astype(np.float32).tobytes())
-    stream.close()
-    p.terminate()
-
-def play_progression(progression, beats_per_chord=4):
-    for func, chord in progression:
-        notes = parse_chord(chord)
-        print(f"  {chord} ({func})", end=" ", flush=True)
-        play_chord(notes, BEAT_LENGTH * beats_per_chord)
-    print()
+#def play_progression(progression, beats_per_chord=4):
+#    for func, chord in progression:
+#        notes = parse_chord(chord)
+#        print(f"  {chord} ({func})", end=" ", flush=True)
+#        play_chord(notes, BEAT_LENGTH * beats_per_chord)
+#    print()
 
 # ============================================
 # MIDI保存
@@ -158,6 +161,7 @@ def save_as_midi(progression, filename="progression.mid", beats_per_chord=4):
     
     for func, chord in progression:
         notes = parse_chord(chord)
+        # parse_chordはライブラリを使用に変更する
         
         for note in notes:
             track.append(Message('note_on', note=note, velocity=80, time=0))
@@ -181,10 +185,12 @@ def main():
         # 生成
         progression = generator.generate(bars=4)
         print(f"進行: {generator.pretty_print(progression)}")
+        duration = [1, 1, 1, 1]
         
         # 再生
         print("再生:", end=" ")
-        play_progression(progression)
+        play_wave_sound.play_chord(progression, duration)
+        #play_progression(progression)
         
         # アクション
         cmd = input("\n[r]再生成 [s]MIDI保存 [q]終了: ").lower()

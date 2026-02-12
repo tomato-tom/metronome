@@ -1,3 +1,4 @@
 my_pattern.sh
 uv.lock
 .venv
+__pycache__
