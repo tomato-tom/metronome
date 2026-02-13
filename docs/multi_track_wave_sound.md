@@ -386,3 +386,9 @@ flowchart LR
     Stage2 --> Stage3
     Stage3 --> Stage4
 ```
+
+## メモ
+
+再生中にノイズはいるようになり、OS再起動でなおった
+ganttチャートでピアノロールのようにできる？
+
