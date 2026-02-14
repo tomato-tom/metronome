@@ -5,6 +5,21 @@ import time
 SAMPLE_RATE = 44100
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+def normalize_note_name(note):
+    """フラットをシャープに変換（例：'Bb' → 'A#'）"""
+    flat_to_sharp = {
+        'Cb': 'B',
+        'Db': 'C#',
+        'Eb': 'D#',
+        'Fb': 'E',
+        'Gb': 'F#',
+        'Ab': 'G#',
+        'Bb': 'A#',
+        'E#': 'F',
+        'B#': 'C'
+    }
+    return flat_to_sharp.get(note, note)
+
 def build_chord(chord_symbol, bass_octave=2, chord_octave=4, intervals=None):
     """
     コードをインターバルから生成
@@ -24,13 +39,13 @@ def build_chord(chord_symbol, bass_octave=2, chord_octave=4, intervals=None):
     if intervals is None:
         intervals = result[1]
     
-    if len(root) > 1 and root[1] == '#':
-        root_index = NOTE_NAMES.index(root[:2])
-    else:
-        root_index = NOTE_NAMES.index(root[0])
+    # ルート名を正規化してインデックス取得
+    root = normalize_note_name(root)
+    root_index = NOTE_NAMES.index(root)
+
     chord_notes = []
     
-    # ベース音（ルートのbass_octave）
+    # ベース音
     chord_notes.append(f"{root}{bass_octave}")
     
     # コード構成音
@@ -82,6 +97,37 @@ def parse_chord_symbol(chord_symbol):
         intervals = [0, 4, 7]  # デフォルトはメジャー
     
     return root, intervals
+
+def notes_to_midi(notes):
+    """
+    音名リストをMIDIノート番号に変換
+    
+    Args:
+        notes: ['C2', 'C4', 'E4', 'G4'] のようなコードやメロディのリスト
+    
+    Returns:
+        MIDIノート番号のリスト [36, 60, 64, 67]
+    """
+    midi_notes = []
+    for note_name in notes:
+        # ノート名を正規化
+        note_name = normalize_note_name(note_name)
+
+        # ノート名とオクターブに分離
+        if len(note_name) == 2:  # C4 のような形式
+            note = note_name[0]
+            octave = int(note_name[1])
+        elif len(note_name) == 3:  # C#4 のような形式
+            note = note_name[:2]
+            octave = int(note_name[2])
+        else:
+            raise ValueError(f"無効なノート名: {note_name}")
+        
+        # MIDIノート番号 = ノートインデックス + (オクターブ+1)*12
+        note_index = NOTE_NAMES.index(note)
+        midi_notes.append(note_index + (octave + 1) * 12)
+    
+    return midi_notes
 
 def note_to_freq(note, octave=4):
     """Convert note name to frequency in Hz"""

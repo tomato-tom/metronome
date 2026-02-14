@@ -16,7 +16,7 @@ CONFIG = {
     },
     "substitutions": {
         "T":  ["C", "Am", "Em"],
-        "SD": ["F", "Dm7"],
+        "SD": ["F", "Dm"],
         "D":  ["G", "G7", "Dm7"]
     },
     "change_rate": {
@@ -90,7 +90,7 @@ class ChordProgressionGenerator:
         return " | ".join(progression)
 
 # ============================================
-# サウンドエンジン
+# MIDI保存
 # ============================================
 SAMPLE_RATE = 44100
 BPM = 120
@@ -104,13 +104,17 @@ def save_as_midi(progression, filename="progression.mid", beats_per_chord=4):
     ticks_per_beat = mid.ticks_per_beat
     ticks_per_chord = ticks_per_beat * beats_per_chord
     
-    for func, chord in progression:
-        notes = parse_chord(chord)
-        # parse_chordはライブラリを使用に変更する
+    for chord in progression:
+        notes = play_wave_sound.build_chord(chord)
+        print(notes) #debug
+
+        # MIDIノート番号に変換
+        midi_notes = play_wave_sound.notes_to_midi(notes)
+        print(midi_notes) #debug
         
-        for note in notes:
+        for note in midi_notes:
             track.append(Message('note_on', note=note, velocity=80, time=0))
-        for note in notes:
+        for note in midi_notes:
             track.append(Message('note_off', note=note, velocity=0, time=ticks_per_chord))
     
     mid.save(filename)
@@ -130,7 +134,7 @@ def main():
         # 生成
         progression = generator.generate(bars=4)
         print(f"進行: {generator.pretty_print(progression)}")
-        duration = [1, 1, 1, 1]
+        duration = [2, 2, 2, 2]
         
         # 再生
         print("再生:", end=" ")
