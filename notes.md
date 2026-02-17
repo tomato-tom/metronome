@@ -72,8 +72,24 @@ SY - 1000 0010 0000 1000
 SD - 0011 1100 1111 0000
 BD - 1000 0010 1000 1000
 
-音源は？
 
-metronome_stats.sh
-metronome_swing.sh
+### 音源
+
+snippets:
+- generate_chord_progression.py
+- multi-track_wave_sound.py
+- play_midi.py
+- play_wave_sound.py
+
+たまに再生時にノイズ入るようになることがある
+```
+pkill firefox
+```
+でなぜか治る
+この辺りかなあ
+```
+systemctl --user status pipewire pipewire-pulse
+
+[Firefox]: ERROR command:-1 (invalid) tag:2 error:25 (Input/output error)
+```
 
