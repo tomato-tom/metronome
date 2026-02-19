@@ -3,11 +3,13 @@
 bpm=${1:-120}
 beats=${2:-4}
 bars=${3:-99}
+freq=880
+len=60
 
-# BPMを表示する関数
-show_bpm() {
-    echo -ne "\rBPM: $bpm ($(echo "scale=3; 60/$bpm" | bc)s per beat) - Bar: ? Beat: ?\r"
-}
+# FIFOの作成
+FIFO=/tmp/metronome_bpm.fifo
+rm -f $FIFO
+mkfifo $FIFO
 
 # 初期表示
 show_bpm
@@ -19,28 +21,57 @@ echo "  Space: pause/resume"
 echo "  q: quit"
 echo
 
-trap 'kill $play_pid 2>/dev/null; rm -f /tmp/metronome_pause; echo -e "\nStopped"; exit' INT
+trap 'kill $play_pid 2>/dev/null; rm -f /tmp/metronome_pause $FIFO; echo -e "\nStopped"; exit' INT
 
 play() {
     local bar=1 beat=1
+    local current_bpm=$bpm
+    
+    # 非ブロッキングでFIFOを開く
+    exec 3<>$FIFO
+
+    # BPMを表示
+    show_bpm() {
+        local bpm=$1
+        local bar=$2
+        local beat=$3
+        echo -ne "\rBPM: $bpm - Bar: $bar Beat: $beat  \r"
+    }
+
+    # BPM変更をチェック
+    check_bpm() {
+        if read -t 0 <&3; then
+            read -r new_bpm <&3
+            if [[ -n $new_bpm ]]; then
+                current_bpm=$new_bpm
+                show_bpm $current_bpm $bar $beat
+            fi
+        fi
+    }
+    
     while [ $bar -le $bars ]; do
         beat=1
         while [ $beat -le $beats ]; do
             # 一時停止ファイルをチェック
             while [ -f /tmp/metronome_pause ]; do
+                check_bpm
                 sleep 0.1
             done
             
-            echo -ne "\rBPM: $bpm ($(echo "scale=3; 60/$bpm" | bc)s per beat) - Bar: $bar Beat: $beat  \r"
-            beep -l 60 &
+            check_bpm
+            show_bpm $current_bpm $bar $beat
+            beep -f $freq -l $len &
             
-            # intervalを動的に計算（BPM変更に対応）
-            interval=$(echo "scale=3; 60/$bpm" | bc)
+            # interval計算
+            interval=$(echo "scale=3; 60/$current_bpm" | bc)
             sleep $interval
             ((beat++))
         done
         ((bar++))
     done
+    
+    # FIFOを閉じる
+    exec 3<&-
 }
 
 play &
@@ -57,31 +88,30 @@ while :; do
         else
             touch /tmp/metronome_pause
             paused=true
-            echo -ne "\rPaused... BPM: $bpm ($(echo "scale=3; 60/$bpm" | bc)s per beat)               \r"
         fi
     elif [[ $key == 'u' ]]; then
         # u: BPM +1
         bpm=$((bpm + 1))
-        show_bpm
+        echo $bpm > $FIFO &
     elif [[ $key == 'd' ]]; then
         # d: BPM -1
         if [ $bpm -gt 1 ]; then
             bpm=$((bpm - 1))
+            echo $bpm > $FIFO &
         fi
-        show_bpm
     elif [[ $key == 'U' ]]; then
         # U: BPM +10% (小数点以下切り捨て)
         bpm=$(echo "$bpm * 1.1 / 1" | bc)
-        show_bpm
+        echo $bpm > $FIFO &
     elif [[ $key == 'D' ]]; then
         # D: BPM -10% (小数点以下切り捨て)
         if [ $bpm -gt 10 ]; then
             bpm=$(echo "$bpm * 0.9 / 1" | bc)
+            echo $bpm > $FIFO &
         fi
-        show_bpm
     elif [[ $key == 'q' ]]; then
         kill $play_pid 2>/dev/null
-        rm -f /tmp/metronome_pause
+        rm -f /tmp/metronome_pause $FIFO
         echo -e "\nQuit"
         exit
     fi
